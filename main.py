@@ -13,6 +13,14 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 
+def alpha_weight(epoch):
+    if epoch < args.t1:
+        return 0.0
+    elif epoch > args.t2:
+        return args.alpha
+    else:
+         return ((epoch-args.t1) / (args.t2-args.t1))*args.alpha
+
 def main(args):
     if args.dataset == "cifar10":
         args.num_classes = 10
@@ -22,8 +30,12 @@ def main(args):
         args.num_classes = 100
         labeled_dataset, unlabeled_dataset, test_dataset = get_cifar100(args, 
                                                                 args.datapath)
-    args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
     
+    args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
+    # TODO should we use arguments or fix it for a certain percentaje of the epochs given?
+    args.epoch_t1 = math.ceil(args.t1 / args.iter_per_epoch)
+    args.epoch_t2 = math.ceil(args.t2 / args.iter_per_epoch)
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     labeled_loader      = iter(DataLoader(labeled_dataset, 
@@ -40,16 +52,50 @@ def main(args):
                                     num_workers=args.num_workers)
     
     model       = WideResNet(args.model_depth, 
-                                args.num_classes, widen_factor=args.model_width)
+                                args.num_classes, widen_factor=args.model_width, dropRate=args.drop_rate)
     model       = model.to(device)
 
-    # TODO add formula to calculate alpha depending on the epoch
-    # TODO Add learning rate scheduler
     # TODO add scheduler for momentum
-    optimizer = torch.optim.SGD(model.parameters(), lr = args.lr, momentum = args.momentum)
+    optimizer = torch.optim.SGD(model.parameters(), lr = args.lr, momentum = args.momentum, weight_decay=args.wd)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
     criterion = nn.CrossEntropyLoss()
-  
-    for epoch in range(args.epoch):
+
+    # STAGE ONE -> epoch < args.t1
+    # alpha for pseudolabeled loss = 0, we just train over the labeled data
+    for epoch in range(args.epoch_t1):
+            running_loss = 0
+            model.train()
+            for i in range(args.iter_per_epoch):
+                try:
+                    x_l, y_l    = next(labeled_loader)
+                except StopIteration:
+                    labeled_loader      = iter(DataLoader(labeled_dataset, 
+                                                batch_size = args.train_batch, 
+                                                shuffle = True, 
+                                                num_workers=args.num_workers))
+                    x_l, y_l    = next(labeled_loader)
+                x_l, y_l    = x_l.to(device), y_l.to(device)
+
+            
+
+                # calculate loss for labeled
+                output_l = model(x_l)
+                l_loss = criterion(output_l, y_l)
+                
+                # back propagation
+                optimizer.zero_grad()
+                l_loss.backward()
+                optimizer.step()
+                running_loss += l_loss.item()
+            print('Epoch: {} : Train Loss : {:.5f} '.format(epoch, running_loss/(args.iter_per_epoch)))
+
+            scheduler.step()
+
+   
+    # STAGE TWO -> args.t1 <= epoch <= args.t2
+    # alpha gets calculated for weighting the pseudolabeled data
+    # we train over labeled and pseudolabeled data
+    for epoch in range(args.epoch_t1, args.epoch_t2):
         running_loss = 0
         model.train()
         for i in range(args.iter_per_epoch):
@@ -93,8 +139,7 @@ def main(args):
             pl_loss = criterion(output_pl, y_pl)
             output_l = model(x_l)
             l_loss = criterion(output_l, y_l)
-            # TODO apply alpha regulariser
-            total_loss = (l_loss*n_x_l + pl_loss*n_x_pl) / (n_x_l + n_x_pl)
+            total_loss = (l_loss*n_x_l + alpha_weight(epoch) * pl_loss*n_x_pl) / (n_x_l + n_x_pl)
 
             # back propagation
             optimizer.zero_grad()
@@ -103,6 +148,8 @@ def main(args):
 
             running_loss += total_loss.item()
         print('Epoch: {} : Train Loss : {:.5f} '.format(epoch, running_loss/(args.iter_per_epoch)))
+
+        scheduler.step()
    
 
 
@@ -145,7 +192,15 @@ if __name__ == "__main__":
                         help="model depth for wide resnet") 
     parser.add_argument("--model-width", type=int, default=2,
                         help="model width for wide resnet")
-    
+    parser.add_argument("--alpha", type=int, default=3,
+                        help="alpha regulariser for the loss")
+    parser.add_argument("--t1", type=int, default=1024*100,
+                            help="first stage of iterations for calculating the alpha regulariser")
+    parser.add_argument("--t2", type=int, default=1024*400,
+                            help="second stage of iterations for calculating the alpha regulariser")
+    parser.add_argument("--drop-rate", type=int, default=0.3,
+                            help="drop out rate for wrn")
+
     # Add more arguments if you need them
     # Describe them in help
     # You can (and should) change the default values of the arguments
