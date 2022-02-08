@@ -1,1 +1,5 @@
+# data
 data/**/*
+
+# python
+__pycache__

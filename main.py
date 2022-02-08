@@ -33,6 +33,7 @@ def main(args):
     
     args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
     # TODO should we use arguments or fix it for a certain percentaje of the epochs given?
+    # TODO check t2 <= epoch
     args.epoch_t1 = math.ceil(args.t1 / args.iter_per_epoch)
     args.epoch_t2 = math.ceil(args.t2 / args.iter_per_epoch)
 
@@ -95,7 +96,7 @@ def main(args):
     # STAGE TWO -> args.t1 <= epoch <= args.t2
     # alpha gets calculated for weighting the pseudolabeled data
     # we train over labeled and pseudolabeled data
-    for epoch in range(args.epoch_t1, args.epoch_t2):
+    for epoch in range(args.epoch_t1, args.epoch):
         running_loss = 0
         model.train()
         for i in range(args.iter_per_epoch):
@@ -136,16 +137,16 @@ def main(args):
             n_x_pl = x_pl.size(dim=0)
             n_x_l = x_l.size(dim=0)
             output_pl = model(x_pl)
-            pl_loss = criterion(output_pl, y_pl)
+            pl_loss =  0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl)
             output_l = model(x_l)
             l_loss = criterion(output_l, y_l)
             total_loss = (l_loss*n_x_l + alpha_weight(epoch) * pl_loss*n_x_pl) / (n_x_l + n_x_pl)
-
+           
             # back propagation
             optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
-
+            
             running_loss += total_loss.item()
         print('Epoch: {} : Train Loss : {:.5f} '.format(epoch, running_loss/(args.iter_per_epoch)))
 
@@ -178,9 +179,9 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=1024*512, type=int,
+    parser.add_argument('--total-iter', default=16*3, type=int,
                         help='total number of iterations to run')
-    parser.add_argument('--iter-per-epoch', default=1024, type=int,
+    parser.add_argument('--iter-per-epoch', default=16, type=int,
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
@@ -194,9 +195,9 @@ if __name__ == "__main__":
                         help="model width for wide resnet")
     parser.add_argument("--alpha", type=int, default=3,
                         help="alpha regulariser for the loss")
-    parser.add_argument("--t1", type=int, default=1024*100,
+    parser.add_argument("--t1", type=int, default=16*1,
                             help="first stage of iterations for calculating the alpha regulariser")
-    parser.add_argument("--t2", type=int, default=1024*400,
+    parser.add_argument("--t2", type=int, default=16*2,
                             help="second stage of iterations for calculating the alpha regulariser")
     parser.add_argument("--drop-rate", type=int, default=0.3,
                             help="drop out rate for wrn")
