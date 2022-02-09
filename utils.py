@@ -21,3 +21,11 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
+# calculate alpha regulariser
+def alpha_weight(alpha, t1, t2, curr_epoch):
+    if curr_epoch < t1:
+        return 0.0
+    elif curr_epoch > t2:
+        return alpha
+    else:
+        return ((curr_epoch-t1) / (t2-t1))*alpha
