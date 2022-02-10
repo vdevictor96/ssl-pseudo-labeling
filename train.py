@@ -1,6 +1,8 @@
 import sys
 import argparse
 import math
+import copy
+from os.path import join as pjoin
 
 from dataloader import get_cifar10, get_cifar100
 from utils import accuracy, alpha_weight
@@ -14,58 +16,50 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 
-def train(model, datasets, dataloaders, model_path,
-          criterion, optimizer, scheduler, args):
+def train (model, datasets, dataloaders, modelpath,
+          criterion, optimizer, scheduler, validation, test, args):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+    training_loss = 1e8
+    validation_loss = 1e8
+    test_loss = 1e8
+
+    if validation:
+        best_model = {
+            'epoch': 0,
+            'model_state_dict': copy.deepcopy(model.state_dict()),
+            'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
+            'training_loss': 1e8,
+            'validation_loss': 1e8,
+            'test_loss': 1e8,
+            'model_depth' : args.model_depth,
+            'num_classes' : args.num_classes,
+            'model_width' : args.model_width,
+            'drop_rate' : args.drop_rate,
+        } 
     # access datasets and dataloders
     labeled_dataset = datasets['labeled']
-    unlabeled_dataset = datasets['unlabeled']
-    validation_dataset = datasets['validation']
-    test_dataset = datasets['test']
-
     labeled_loader = dataloaders['labeled']
     unlabeled_loader = dataloaders['unlabeled']
-    validation_loader = dataloaders['validation']
-    test_loader = dataloaders['test']
+    unlabeled_dataset = datasets['unlabeled']
+    if validation:
+        validation_dataset = datasets['validation']
+        validation_loader = dataloaders['validation']
+    if test:
+        test_dataset = datasets['test']
+        test_loader = dataloaders['test']
 
+    print('Training started')
+    print('-' * 20)
+    model.train()
     # train
     # STAGE ONE -> epoch < args.t1
     # alpha for pseudolabeled loss = 0, we just train over the labeled data
-    for epoch in range(args.epoch_t1):
-        running_loss = 0
-        model.train()
-        for i in range(args.iter_per_epoch):
-            try:
-                x_l, y_l = next(labeled_loader)
-            except StopIteration:
-                labeled_loader = iter(DataLoader(labeled_dataset,
-                                                 batch_size=args.train_batch,
-                                                 shuffle=True,
-                                                 num_workers=args.num_workers))
-                x_l, y_l = next(labeled_loader)
-            x_l, y_l = x_l.to(device), y_l.to(device)
-
-            # calculate loss for labeled
-            output_l = model(x_l)
-            l_loss = criterion(output_l, y_l)
-
-            # back propagation
-            optimizer.zero_grad()
-            l_loss.backward()
-            optimizer.step()
-            running_loss += l_loss.item()
-        print('Epoch: {} : Train Loss : {:.5f} '.format(
-            epoch, running_loss/(args.iter_per_epoch)))
-
-        scheduler.step()
-
     # STAGE TWO -> args.t1 <= epoch <= args.t2
     # alpha gets calculated for weighting the pseudolabeled data
     # we train over labeled and pseudolabeled data
-    for epoch in range(args.epoch_t1, args.epoch):
-        running_loss = 0
+    for epoch in range(args.epoch):
+        running_loss = 0.0
         model.train()
         for i in range(args.iter_per_epoch):
             try:
@@ -76,41 +70,45 @@ def train(model, datasets, dataloaders, model_path,
                                                  shuffle=True,
                                                  num_workers=args.num_workers))
                 x_l, y_l = next(labeled_loader)
-
-            try:
-                x_ul, _ = next(unlabeled_loader)
-            except StopIteration:
-                unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                                   batch_size=args.train_batch,
-                                                   shuffle=True,
-                                                   num_workers=args.num_workers))
-                x_ul, _ = next(unlabeled_loader)
-
             x_l, y_l = x_l.to(device), y_l.to(device)
-            x_ul = x_ul.to(device)
+            
+            # unlabeled data is used in Stage 2
+            if epoch >= args.epoch_t1:
+                try:
+                    x_ul, y_ul = next(unlabeled_loader)
+                except StopIteration:
+                    unlabeled_loader = iter(DataLoader(unlabeled_dataset,
+                                                    batch_size=args.train_batch,
+                                                    shuffle=True,
+                                                    num_workers=args.num_workers))
+                    x_ul, _ = next(unlabeled_loader)
+                x_ul = x_ul.to(device)
+        
+                # get the subset of pseudo-labelled data
+                model.eval()
+                output_ul = model(x_ul)
+                target_ul = F.softmax(output_ul, dim=1)
+                # TODO change the threshold to argument value
+                hot_target_ul = torch.where(target_ul > 0.52, 1, 0)
+                idx, y_pl = torch.where(hot_target_ul == 1)
+                x_pl = x_ul[idx]
+                x_pl = x_pl.to(device)
 
-            # get the subset of pseudo-labelled data
-            model.eval()
-            output_ul = model(x_ul)
-            target_ul = F.softmax(output_ul, dim=1)
-            # TODO change the threshold to argument value
-            hot_target_ul = torch.where(target_ul > 0.52, 1, 0)
-            idx, y_pl = torch.where(hot_target_ul == 1)
-            x_pl = x_ul[idx]
-            x_pl = x_pl.to(device)
-
-            # calculate loss for labelled and pseudo-labelled data and sum up
+            # calculate loss for labelled and pseudo-labelled data (if stage 2) and sum up
             model.train()
-            n_x_pl = x_pl.size(dim=0)
+            if epoch >= args.epoch_t1:
+                n_x_pl = x_pl.size(dim=0)
+                output_pl = model(x_pl)
+                alpha_w = alpha_weight(args.alpha, args.t1, args.t2, epoch)
+                pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl) * alpha_w
+            else: 
+                n_x_pl = 0
+                pl_loss = 0.0
+
             n_x_l = x_l.size(dim=0)
-            output_pl = model(x_pl)
-            pl_loss = 0.0 if (output_pl.size(
-                0) == 0) else criterion(output_pl, y_pl)
             output_l = model(x_l)
             l_loss = criterion(output_l, y_l)
-            alpha_w = alpha_weight(args.alpha, args.t1, args.t2, epoch)
-            total_loss = (l_loss*n_x_l + alpha_w
-                          * pl_loss*n_x_pl) / (n_x_l + n_x_pl)
+            total_loss = (l_loss*n_x_l +  pl_loss*n_x_pl) / (n_x_l + n_x_pl)
 
             # back propagation
             optimizer.zero_grad()
@@ -118,125 +116,77 @@ def train(model, datasets, dataloaders, model_path,
             optimizer.step()
 
             running_loss += total_loss.item()
+        training_loss = running_loss/(args.iter_per_epoch)
         print('Epoch: {} : Train Loss : {:.5f} '.format(
-            epoch, running_loss/(args.iter_per_epoch)))
-
-        scheduler.step()
-    
-    # TODO save last model
-    return model
-
-
-def train_val(model, datasets, dataloaders, model_path,
-          criterion, optimizer, scheduler, args):
-
-  
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    # access datasets and dataloders
-    labeled_dataset = datasets['labeled']
-    unlabeled_dataset = datasets['unlabeled']
-    validation_dataset = datasets['validation']
-    test_dataset = datasets['test']
-
-    labeled_loader = dataloaders['labeled']
-    unlabeled_loader = dataloaders['unlabeled']
-    validation_loader = dataloaders['validation']
-    test_loader = dataloaders['test']
-
-    # train
-    # STAGE ONE -> epoch < args.t1
-    # alpha for pseudolabeled loss = 0, we just train over the labeled data
-    for epoch in range(args.epoch_t1):
-        running_loss = 0
-        model.train()
-        for i in range(args.iter_per_epoch):
-            try:
-                x_l, y_l = next(labeled_loader)
-            except StopIteration:
-                labeled_loader = iter(DataLoader(labeled_dataset,
-                                                 batch_size=args.train_batch,
-                                                 shuffle=True,
-                                                 num_workers=args.num_workers))
-                x_l, y_l = next(labeled_loader)
-            x_l, y_l = x_l.to(device), y_l.to(device)
-
-            # calculate loss for labeled
-            output_l = model(x_l)
-            l_loss = criterion(output_l, y_l)
-
-            # back propagation
-            optimizer.zero_grad()
-            l_loss.backward()
-            optimizer.step()
-            running_loss += l_loss.item()
-        print('Epoch: {} : Train Loss : {:.5f} '.format(
-            epoch, running_loss/(args.iter_per_epoch)))
-
-        scheduler.step()
-
-    # STAGE TWO -> args.t1 <= epoch <= args.t2
-    # alpha gets calculated for weighting the pseudolabeled data
-    # we train over labeled and pseudolabeled data
-    for epoch in range(args.epoch_t1, args.epoch):
-        running_loss = 0
-        model.train()
-        for i in range(args.iter_per_epoch):
-            try:
-                x_l, y_l = next(labeled_loader)
-            except StopIteration:
-                labeled_loader = iter(DataLoader(labeled_dataset,
-                                                 batch_size=args.train_batch,
-                                                 shuffle=True,
-                                                 num_workers=args.num_workers))
-                x_l, y_l = next(labeled_loader)
-
-            try:
-                x_ul, _ = next(unlabeled_loader)
-            except StopIteration:
-                unlabeled_loader = iter(DataLoader(unlabeled_dataset,
-                                                   batch_size=args.train_batch,
-                                                   shuffle=True,
-                                                   num_workers=args.num_workers))
-                x_ul, _ = next(unlabeled_loader)
-
-            x_l, y_l = x_l.to(device), y_l.to(device)
-            x_ul = x_ul.to(device)
-
-            # get the subset of pseudo-labelled data
+            epoch, training_loss))
+        
+        # Calculate loss for validation set every epoch
+        # Save the best model
+        # TODO implement early stopping?
+        running_loss = 0.0
+        if validation:
             model.eval()
-            output_ul = model(x_ul)
-            target_ul = F.softmax(output_ul, dim=1)
-            # TODO change the threshold to argument value
-            hot_target_ul = torch.where(target_ul > 0.52, 1, 0)
-            idx, y_pl = torch.where(hot_target_ul == 1)
-            x_pl = x_ul[idx]
-            x_pl = x_pl.to(device)
+            for x_val, y_val in validation_loader:
+                with torch.no_grad():
+                    x_val, y_val = x_val.to(device), y_val.to(device)
+                    output_val = model(x_val)
+                    loss = criterion(output_val, y_val)
 
-            # calculate loss for labelled and pseudo-labelled data and sum up
-            model.train()
-            n_x_pl = x_pl.size(dim=0)
-            n_x_l = x_l.size(dim=0)
-            output_pl = model(x_pl)
-            pl_loss = 0.0 if (output_pl.size(
-                0) == 0) else criterion(output_pl, y_pl)
-            output_l = model(x_l)
-            l_loss = criterion(output_l, y_l)
-            alpha_w = alpha_weight(args.alpha, args.t1, args.t2, epoch)
-            total_loss = (l_loss*n_x_l + alpha_w
-                          * pl_loss*n_x_pl) / (n_x_l + n_x_pl)
+                    running_loss += loss.item() * x_val.size(0)
 
-            # back propagation
-            optimizer.zero_grad()
-            total_loss.backward()
-            optimizer.step()
+            validation_loss = running_loss / len(validation_dataset)
+            
+            print('Epoch: {} : Validation Loss : {:.5f} '.format(
+            epoch, validation_loss))
 
-            running_loss += total_loss.item()
-        print('Epoch: {} : Train Loss : {:.5f} '.format(
-            epoch, running_loss/(args.iter_per_epoch)))
-
+            if validation_loss < best_model['validation_loss']:
+                # TODO save all arguments?
+                best_model = {
+                    'epoch': epoch,
+                    'model_state_dict': copy.deepcopy(model.state_dict()),
+                    'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
+                    'training_loss': training_loss,
+                    'validation_loss': validation_loss,
+                    'test_loss': test_loss,
+                    'model_depth' : args.model_depth,
+                    'num_classes' : args.num_classes,
+                    'model_width' : args.model_width,
+                    'drop_rate' : args.drop_rate
+                }
+                torch.save(best_model, pjoin(modelpath, 'best_model.pt'))
+                print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
+        # update learning rate
         scheduler.step()
-    
+        # Check test error with current model over test dataset
+        running_loss = 0.0
+        if test:
+            test_loss = 0.0
+            model.eval()
+            for x_test, y_test in test_loader:
+                with torch.no_grad():
+                    x_test, y_test = x_test.to(device), y_test.to(device)
+                    output_test = model(x_test)
+                    loss = criterion(output_test, y_test)
+                    running_loss += loss.item() * x_test.size(0)
+            test_loss = running_loss / len(test_dataset)
+            print('Epoch: {} : Test Loss : {:.5f} '.format(
+                epoch, test_loss))
+
     # TODO save last model
+    last_model = {
+        'epoch': args.epoch,
+        'model_state_dict': copy.deepcopy(model.state_dict()),
+        'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
+        'training_loss': training_loss,
+        'validation_loss': validation_loss,
+        'test_loss': test_loss,
+        'model_depth' : args.model_depth,
+        'num_classes' : args.num_classes,
+        'model_width' : args.model_width,
+        'drop_rate' : args.drop_rate
+    }
+    torch.save(last_model, pjoin(modelpath, 'last_model.pt'))
+    if validation:
+        # recover better weights from validation
+        model.load_state_dict(best_model['model_state_dict'])
     return model

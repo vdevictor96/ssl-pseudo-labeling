@@ -1,7 +1,7 @@
 import sys
 import argparse
 import math
-
+import random
 from dataloader import get_cifar10, get_cifar100
 from utils import accuracy
 
@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 # dataloader.py:121: UserWarning UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach()
 # or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
@@ -51,7 +51,9 @@ def main(args):
         args.num_classes = 100
         labeled_dataset, unlabeled_dataset, test_dataset = get_cifar100(args,
                                                                         args.datapath)
-
+    # TODO decide how to split validation set
+    validation_dataset = Subset(unlabeled_dataset, random.sample(range(0, len(labeled_dataset)), args.num_validation))
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     labeled_loader = iter(DataLoader(labeled_dataset,
@@ -62,6 +64,12 @@ def main(args):
                                        batch_size=args.train_batch,
                                        shuffle=True,
                                        num_workers=args.num_workers))
+    
+    validation_loader = DataLoader(validation_dataset,
+                             batch_size=args.train_batch,
+                             shuffle=True,
+                             num_workers=args.num_workers)
+    
     test_loader = DataLoader(test_dataset,
                              batch_size=args.test_batch,
                              shuffle=False,
@@ -71,13 +79,13 @@ def main(args):
     datasets = {
         'labeled': labeled_dataset,
         'unlabeled': unlabeled_dataset,
-        'validation': labeled_dataset,
+        'validation': validation_dataset,
         'test': test_dataset,
     }
     dataloaders = {
         'labeled': labeled_loader,
         'unlabeled': unlabeled_loader,
-        'validation': labeled_loader,
+        'validation': validation_loader,
         'test': test_loader
     }
 
@@ -100,8 +108,8 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
 
     # train model
-    best_model = train(model, datasets, dataloaders, '', criterion,
-                       optimizer, scheduler, args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion,
+                       optimizer, scheduler, True, True, args)
 
 
 if __name__ == "__main__":
@@ -148,6 +156,10 @@ if __name__ == "__main__":
                         help="second stage of iterations for calculating the alpha regulariser")
     parser.add_argument("--drop-rate", type=int, default=0.3,
                         help="drop out rate for wrn")
+    parser.add_argument('--num-validation', type=int,
+                        default=1000, help='Total number of validation samples')
+    parser.add_argument("--modelpath", default="./model/",
+                        type=str, help="Path to the persisted models")
     args = parser.parse_args()
 
     # train
