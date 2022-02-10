@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from utils import accuracy
 
 
 def train (model, datasets, dataloaders, modelpath,
@@ -160,17 +161,22 @@ def train (model, datasets, dataloaders, modelpath,
         # Check test error with current model over test dataset
         running_loss = 0.0
         if test:
+            total_accuracy = []
             test_loss = 0.0
             model.eval()
             for x_test, y_test in test_loader:
                 with torch.no_grad():
                     x_test, y_test = x_test.to(device), y_test.to(device)
-                    output_test = model(x_test)
+                    output_test = model(x_test)                              
                     loss = criterion(output_test, y_test)
                     running_loss += loss.item() * x_test.size(0)
+                    acc = accuracy(output_test, y_test)
+                    total_accuracy.append(sum(acc))
             test_loss = running_loss / len(test_dataset)
             print('Epoch: {} : Test Loss : {:.5f} '.format(
                 epoch, test_loss))
+            print('Accuracy of the network on test images: %d %%' % (
+                sum(total_accuracy)/len(total_accuracy)))
 
     # TODO save last model
     last_model = {
