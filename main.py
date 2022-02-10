@@ -3,6 +3,7 @@ import argparse
 import math
 import random
 from dataloader import get_cifar10, get_cifar100
+from test import test_cifar10
 from utils import accuracy
 
 from model.wrn import WideResNet
@@ -107,9 +108,13 @@ def main(args):
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.998)
     criterion = nn.CrossEntropyLoss()
 
+
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion,
-                       optimizer, scheduler, True, True, args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+
+    # test
+    # test_cifar10(test_dataset, './model/best_model.pt')
+
 
 
 if __name__ == "__main__":
@@ -164,3 +169,5 @@ if __name__ == "__main__":
 
     # train
     main(args)
+
+    
