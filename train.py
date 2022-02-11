@@ -5,7 +5,7 @@ import copy
 from os.path import join as pjoin
 
 from dataloader import get_cifar10, get_cifar100
-from utils import accuracy, alpha_weight
+from utils import accuracy, alpha_weight, plot
 
 from model.wrn import WideResNet
 
@@ -30,9 +30,9 @@ def train (model, datasets, dataloaders, modelpath,
             'epoch': 0,
             'model_state_dict': copy.deepcopy(model.state_dict()),
             'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-            'training_loss': 1e8,
-            'validation_loss': 1e8,
-            'test_loss': 1e8,
+            'training_losses': [],
+            'validation_losses': [],
+            'test_losses': [],
             'model_depth' : args.model_depth,
             'num_classes' : args.num_classes,
             'model_width' : args.model_width,
@@ -59,6 +59,9 @@ def train (model, datasets, dataloaders, modelpath,
     # STAGE TWO -> args.t1 <= epoch <= args.t2
     # alpha gets calculated for weighting the pseudolabeled data
     # we train over labeled and pseudolabeled data
+    training_losses = []
+    validation_losses = []
+    test_losses = []
     for epoch in range(args.epoch):
         running_loss = 0.0
         model.train()
@@ -118,6 +121,7 @@ def train (model, datasets, dataloaders, modelpath,
 
             running_loss += total_loss.item()
         training_loss = running_loss/(args.iter_per_epoch)
+        training_losses.append(training_loss)
         print('Epoch: {} : Train Loss : {:.5f} '.format(
             epoch, training_loss))
         
@@ -136,19 +140,19 @@ def train (model, datasets, dataloaders, modelpath,
                     running_loss += loss.item() * x_val.size(0)
 
             validation_loss = running_loss / len(validation_dataset)
-            
+            validation_losses.append(validation_loss)
             print('Epoch: {} : Validation Loss : {:.5f} '.format(
             epoch, validation_loss))
 
-            if validation_loss < best_model['validation_loss']:
+            if len(best_model['validation_losses']) == 0 or validation_loss < best_model['validation_losses'][-2]:
                 # TODO save all arguments?
                 best_model = {
                     'epoch': epoch,
                     'model_state_dict': copy.deepcopy(model.state_dict()),
                     'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-                    'training_loss': training_loss,
-                    'validation_loss': validation_loss,
-                    'test_loss': test_loss,
+                    'training_losses': training_losses,
+                    'validation_losses': validation_losses,
+                    'test_losses': test_losses,
                     'model_depth' : args.model_depth,
                     'num_classes' : args.num_classes,
                     'model_width' : args.model_width,
@@ -173,6 +177,7 @@ def train (model, datasets, dataloaders, modelpath,
                     acc = accuracy(output_test, y_test)
                     total_accuracy.append(sum(acc))
             test_loss = running_loss / len(test_dataset)
+            test_losses.append(test_loss)
             print('Epoch: {} : Test Loss : {:.5f} '.format(
                 epoch, test_loss))
             print('Accuracy of the network on test images: %d %%' % (
@@ -183,9 +188,9 @@ def train (model, datasets, dataloaders, modelpath,
         'epoch': args.epoch,
         'model_state_dict': copy.deepcopy(model.state_dict()),
         'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-        'training_loss': training_loss,
-        'validation_loss': validation_loss,
-        'test_loss': test_loss,
+        'training_losses': training_losses,
+        'validation_losses': validation_losses,
+        'test_losses': test_losses,
         'model_depth' : args.model_depth,
         'num_classes' : args.num_classes,
         'model_width' : args.model_width,

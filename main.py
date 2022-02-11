@@ -1,10 +1,11 @@
+#%%
 import sys
 import argparse
 import math
 import random
 from dataloader import get_cifar10, get_cifar100
 from test import test_cifar10
-from utils import accuracy
+from utils import accuracy, plot, plot_model
 
 from model.wrn import WideResNet
 from train import train
@@ -14,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
+#%%
 
 # dataloader.py:121: UserWarning UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach()
 # or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
@@ -110,12 +112,18 @@ def main(args):
 
 
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+    #best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
     # test_cifar10(test_dataset, './model/best_model.pt')
-
-
+    
+    # %%
+    # plot training loss
+    plot_model('./model/last_model.pt', 'training_losses', 'Training Loss')
+    # %%
+    # plot training loss
+    plot_model('./model/last_model.pt', 'test_losses', 'Test Loss', color='r')
+    # %%
 
 if __name__ == "__main__":
     # parse arguments
@@ -169,5 +177,3 @@ if __name__ == "__main__":
 
     # train
     main(args)
-
-    

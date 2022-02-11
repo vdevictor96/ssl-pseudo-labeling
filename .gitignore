@@ -1,7 +1,7 @@
 # data
 data/**/*
 # models
-models/**/*
+model/**/*
 
 # python
 __pycache__
