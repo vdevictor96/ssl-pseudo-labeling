@@ -110,14 +110,14 @@ def main(args):
     # best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
-    test_cifar10(test_dataset, './model/best_model.pt')
+    test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
     
     # %%
     # plot training loss
-    # plot_model('./model/last_model.pt', 'training_losses', 'Training Loss')
+    # plot_model('./models/obs/last_model.pt', 'training_losses', 'Training Loss')
     # %%
     # plot training loss
-    # plot_model('./model/last_model.pt', 'test_losses', 'Test Loss', color='r')
+    # plot_model('./models/obs/last_model.pt', 'test_losses', 'Test Loss', color='r')
     # %%
 
 if __name__ == "__main__":
@@ -166,7 +166,7 @@ if __name__ == "__main__":
                         help="drop out rate for wrn")
     parser.add_argument('--num-validation', type=int,
                         default=1000, help='Total number of validation samples')
-    parser.add_argument("--modelpath", default="./model/",
+    parser.add_argument("--modelpath", default="./models/obs/",
                         type=str, help="Path to the persisted models")
     args = parser.parse_args()
     # jupyter notebook

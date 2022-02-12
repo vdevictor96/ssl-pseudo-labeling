@@ -20,6 +20,7 @@ from utils import accuracy
 def train (model, datasets, dataloaders, modelpath,
           criterion, optimizer, scheduler, validation, test, args):
 
+    model_subpath = 'cifar10' if args.num_classes == 10 else 'cifar100'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     training_loss = 1e8
     validation_loss = 1e8
@@ -158,7 +159,7 @@ def train (model, datasets, dataloaders, modelpath,
                     'model_width' : args.model_width,
                     'drop_rate' : args.drop_rate
                 }
-                torch.save(best_model, pjoin(modelpath, 'best_model.pt'))
+                torch.save(best_model, pjoin(modelpath, 'best_model_', model_subpath, '.pt'))
                 print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
         # update learning rate
         scheduler.step()
@@ -196,7 +197,7 @@ def train (model, datasets, dataloaders, modelpath,
         'model_width' : args.model_width,
         'drop_rate' : args.drop_rate
     }
-    torch.save(last_model, pjoin(modelpath, 'last_model.pt'))
+    torch.save(last_model, pjoin(modelpath, 'last_model_', model_subpath, '.pt'))
     if validation:
         # recover better weights from validation
         model.load_state_dict(best_model['model_state_dict'])
