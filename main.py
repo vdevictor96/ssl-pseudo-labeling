@@ -23,10 +23,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def save_checkpoint(state, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
-
-
 def main(args):
     # protect iterations/epoch parameters from erroneous input values
     if args.t2 > args.total_iter:
@@ -78,7 +74,6 @@ def main(args):
                              shuffle=False,
                              num_workers=args.num_workers)
 
-    # TODO add validation dataloader
     datasets = {
         'labeled': labeled_dataset,
         'unlabeled': unlabeled_dataset,
@@ -112,17 +107,17 @@ def main(args):
 
 
     # train model
-    #best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+    # best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
-    # test_cifar10(test_dataset, './model/best_model.pt')
+    test_cifar10(test_dataset, './model/best_model.pt')
     
     # %%
     # plot training loss
-    plot_model('./model/last_model.pt', 'training_losses', 'Training Loss')
+    # plot_model('./model/last_model.pt', 'training_losses', 'Training Loss')
     # %%
     # plot training loss
-    plot_model('./model/last_model.pt', 'test_losses', 'Test Loss', color='r')
+    # plot_model('./model/last_model.pt', 'test_losses', 'Test Loss', color='r')
     # %%
 
 if __name__ == "__main__":
@@ -174,6 +169,8 @@ if __name__ == "__main__":
     parser.add_argument("--modelpath", default="./model/",
                         type=str, help="Path to the persisted models")
     args = parser.parse_args()
+    # jupyter notebook
+    # args, unknown = parser.parse_known_args()
 
     # train
     main(args)
