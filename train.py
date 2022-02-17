@@ -145,15 +145,14 @@ def train (model, datasets, dataloaders, modelpath,
             print('Epoch: {} : Validation Loss : {:.5f} '.format(
             epoch, validation_loss))
 
-            if len(best_model['validation_losses']) == 0 or validation_loss < best_model['validation_losses'][-2]:
-                # TODO save all arguments?
+            if best_model['epoch'] == 0 or validation_loss < best_model['validation_losses'][-1]:
                 best_model = {
                     'epoch': epoch,
                     'model_state_dict': copy.deepcopy(model.state_dict()),
                     'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-                    'training_losses': training_losses,
-                    'validation_losses': validation_losses,
-                    'test_losses': test_losses,
+                    'training_losses':  copy.deepcopy(training_losses),
+                    'validation_losses': copy.deepcopy(validation_losses),
+                    'test_losses': copy.deepcopy(test_losses),
                     'model_depth' : args.model_depth,
                     'num_classes' : args.num_classes,
                     'model_width' : args.model_width,
@@ -185,12 +184,12 @@ def train (model, datasets, dataloaders, modelpath,
                 sum(total_accuracy)/len(total_accuracy)))
 
     last_model = {
-        'epoch': args.epoch,
+        'epoch': epoch,
         'model_state_dict': copy.deepcopy(model.state_dict()),
         'optimizer_state_dict': copy.deepcopy(optimizer.state_dict()),
-        'training_losses': training_losses,
-        'validation_losses': validation_losses,
-        'test_losses': test_losses,
+        'training_losses':  copy.deepcopy(training_losses),
+        'validation_losses': copy.deepcopy(validation_losses),
+        'test_losses': copy.deepcopy(test_losses),
         'model_depth' : args.model_depth,
         'num_classes' : args.num_classes,
         'model_width' : args.model_width,
