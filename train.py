@@ -94,7 +94,7 @@ def train (model, datasets, dataloaders, modelpath,
                 output_ul = model(x_ul)
                 target_ul = F.softmax(output_ul, dim=1)
                 # TODO change the threshold to argument value
-                hot_target_ul = torch.where(target_ul > 0.52, 1, 0)
+                hot_target_ul = torch.where(target_ul > args.threshold, 1, 0)
                 idx, y_pl = torch.where(hot_target_ul == 1)
                 x_pl = x_ul[idx]
                 x_pl = x_pl.to(device)
@@ -159,7 +159,7 @@ def train (model, datasets, dataloaders, modelpath,
                     'model_width' : args.model_width,
                     'drop_rate' : args.drop_rate
                 }
-                torch.save(best_model, pjoin(modelpath, 'best_model_', model_subpath, '.pt'))
+                torch.save(best_model, pjoin(modelpath, 'best_model_{}.pt'.format(model_subpath)))
                 print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
         # update learning rate
         scheduler.step()
@@ -184,7 +184,6 @@ def train (model, datasets, dataloaders, modelpath,
             print('Accuracy of the network on test images: %d %%' % (
                 sum(total_accuracy)/len(total_accuracy)))
 
-    # TODO save last model
     last_model = {
         'epoch': args.epoch,
         'model_state_dict': copy.deepcopy(model.state_dict()),
@@ -197,7 +196,7 @@ def train (model, datasets, dataloaders, modelpath,
         'model_width' : args.model_width,
         'drop_rate' : args.drop_rate
     }
-    torch.save(last_model, pjoin(modelpath, 'last_model_', model_subpath, '.pt'))
+    torch.save(last_model, pjoin(modelpath, 'last_model_{}.pt'.format(model_subpath)))
     if validation:
         # recover better weights from validation
         model.load_state_dict(best_model['model_state_dict'])

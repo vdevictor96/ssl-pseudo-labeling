@@ -90,7 +90,6 @@ def main(args):
     # create inner arguments
     args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
     # TODO should we use arguments or fix it for a certain percentaje of the epochs given?
-    # TODO check t2 <= epoch
     args.epoch_t1 = math.ceil(args.t1 / args.iter_per_epoch)
     args.epoch_t2 = math.ceil(args.t2 / args.iter_per_epoch)
 
@@ -107,10 +106,10 @@ def main(args):
 
 
     # train model
-    # best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
-    test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
+    #test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
     
     # %%
     # plot training loss
@@ -142,7 +141,7 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=16*3, type=int,
+    parser.add_argument('--total-iter', default=16*20, type=int,
                         help='total number of iterations to run')
     parser.add_argument('--iter-per-epoch', default=16, type=int,
                         help="Number of iterations to run per epoch")
@@ -158,9 +157,9 @@ if __name__ == "__main__":
                         help="model width for wide resnet")
     parser.add_argument("--alpha", type=int, default=3,
                         help="alpha regulariser for the loss")
-    parser.add_argument("--t1", type=int, default=16*1,
+    parser.add_argument("--t1", type=int, default=16*5,
                         help="first stage of iterations for calculating the alpha regulariser")
-    parser.add_argument("--t2", type=int, default=16*2,
+    parser.add_argument("--t2", type=int, default=16*10,
                         help="second stage of iterations for calculating the alpha regulariser")
     parser.add_argument("--drop-rate", type=int, default=0.3,
                         help="drop out rate for wrn")
