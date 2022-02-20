@@ -5,7 +5,6 @@ from os.path import join as pjoin
 from torch.utils.data import DataLoader, Subset
 from model.wrn import WideResNet
 import torch.nn.functional as F
-from utils import accuracy
 from torch.utils.data import DataLoader
 
 def accuracy(output, target, topk=(1,)):
