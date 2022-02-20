@@ -3,7 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from os.path import join as pjoin
 from torch.utils.data import DataLoader, Subset
-
+from model.wrn import WideResNet
+import torch.nn.functional as F
+from utils import accuracy
+from torch.utils.data import DataLoader
 
 def accuracy(output, target, topk=(1,)):
     """
@@ -80,3 +83,34 @@ def validation_set(base_dataset, num_validation, num_classes):
     np.random.shuffle(validation_idx)
     assert len(validation_idx) == num_validation
     return Subset(base_dataset, validation_idx)
+
+
+def test_accuracy(testdataset, filepath = "./path/to/model.pth.tar"):
+    # CREATE LOADER 
+   
+    test_loader = DataLoader(testdataset,
+                             batch_size=64,
+                             shuffle=False,
+                             num_workers=1)
+    
+    
+    # RETRIEVE MODEL
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    modelpath = torch.load(pjoin(filepath))
+    model = WideResNet(modelpath['model_depth'],
+                       modelpath['num_classes'], widen_factor=modelpath['model_width'], dropRate=modelpath['drop_rate'])
+    model = model.to(device)
+    model.load_state_dict(modelpath['model_state_dict'])
+
+    # CALCULATE ACCURACY
+    model.eval()
+    total_accuracy = []
+    for x_test, y_test in test_loader:
+        with torch.no_grad():
+            x_test, y_test = x_test.to(device), y_test.to(device)
+            output_test = model(x_test)
+            acc = accuracy(output_test, y_test)
+            total_accuracy.append(sum(acc))
+    print('Accuracy of the network on test images: %d %%' % (
+                sum(total_accuracy)/len(total_accuracy)))
+    

@@ -4,7 +4,7 @@ import argparse
 import math
 from dataloader import get_cifar10, get_cifar100
 from test import test_cifar10, test_cifar100
-from utils import plot, plot_model, validation_set
+from utils import plot, plot_model, test_accuracy, validation_set
 
 from model.wrn import WideResNet
 from train import train
@@ -107,6 +107,9 @@ def main(args):
 
     # test
     #test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
+    
+    # get test accuracy
+    # test_accuracy(test_dataset, './models/obs/best_model_cifar10.pt')
     
     # %%
     # plot training loss
