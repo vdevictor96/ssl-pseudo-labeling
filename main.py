@@ -2,19 +2,16 @@
 import sys
 import argparse
 import math
-import random
 from dataloader import get_cifar10, get_cifar100
-from test import test_cifar10
-from utils import accuracy, plot, plot_model
+from test import test_cifar10, test_cifar100
+from utils import plot, plot_model, validation_set
 
 from model.wrn import WideResNet
 from train import train
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 #%%
 
 # dataloader.py:121: UserWarning UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach()
@@ -50,8 +47,8 @@ def main(args):
         args.num_classes = 100
         labeled_dataset, unlabeled_dataset, test_dataset = get_cifar100(args,
                                                                         args.datapath)
-    # TODO decide how to split validation set
-    validation_dataset = Subset(unlabeled_dataset, random.sample(range(0, len(labeled_dataset)), args.num_validation))
+
+    validation_dataset = validation_set(unlabeled_dataset, args.num_validation, args.num_classes)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -106,7 +103,7 @@ def main(args):
 
 
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, False, args)
 
     # test
     #test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
@@ -133,7 +130,8 @@ if __name__ == "__main__":
                         help="The initial learning rate")
     parser.add_argument("--momentum", default=0.9, type=float,
                         help="Optimizer momentum")
-    parser.add_argument("--wd", default=0.00005, type=float,
+    # default value was 0.00005. I changed default value, fixmatch paper recomends 0.0005
+    parser.add_argument("--wd", default=0.0005, type=float,
                         help="Weight decay")
     parser.add_argument("--expand-labels", action="store_true",
                         help="expand labels to fit eval steps")
