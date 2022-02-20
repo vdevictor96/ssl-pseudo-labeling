@@ -21,21 +21,19 @@ warnings.filterwarnings("ignore")
 
 
 def main(args):
+     # create inner arguments
+    args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
+
+
     # protect iterations/epoch parameters from erroneous input values
-    if args.t2 > args.total_iter:
-        print("argument t2 should be larger than total_iter")
+    if args.t2 > args.epoch:
+        print("argument t2 should be smaller than total epochs")
         sys.exit()
-    if args.t1 > args.t2:
-        print("parameter t1 should be smaller or equal than t2")
+    if args.t1 >= args.t2:
+        print("parameter t1 should be smaller than t2")
         sys.exit()
     if args.total_iter % args.iter_per_epoch != 0:
         print("total_iter should be multiple of iter_per_epoch")
-        sys.exit()
-    if args.t1 % args.iter_per_epoch != 0:
-        print("parameter t1 should be multiple of iter_per_epoch")
-        sys.exit()
-    if args.t2 % args.iter_per_epoch != 0:
-        print("parameter t2 should be multiple of iter_per_epoch")
         sys.exit()
 
     # load data
@@ -84,12 +82,7 @@ def main(args):
         'test': test_loader
     }
 
-    # create inner arguments
-    args.epoch = math.ceil(args.total_iter / args.iter_per_epoch)
-    # TODO should we use arguments or fix it for a certain percentaje of the epochs given?
-    args.epoch_t1 = math.ceil(args.t1 / args.iter_per_epoch)
-    args.epoch_t2 = math.ceil(args.t2 / args.iter_per_epoch)
-
+   
     # create model
     model = WideResNet(args.model_depth,
                        args.num_classes, widen_factor=args.model_width, dropRate=args.drop_rate)
@@ -103,7 +96,7 @@ def main(args):
 
 
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, False, args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
     #test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
@@ -129,7 +122,7 @@ if __name__ == "__main__":
                         type=str, help="Path to the CIFAR-10/100 dataset")
     parser.add_argument('--num-labeled', type=int,
                         default=4000, help='Total number of labeled samples')
-    parser.add_argument("--lr", default=0.03, type=float,
+    parser.add_argument("--lr", default=1.5, type=float,
                         help="The initial learning rate")
     parser.add_argument("--momentum", default=0.9, type=float,
                         help="Optimizer momentum")
@@ -142,9 +135,9 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=16*20, type=int,
+    parser.add_argument('--total-iter', default=1024*150, type=int,
                         help='total number of iterations to run')
-    parser.add_argument('--iter-per-epoch', default=16, type=int,
+    parser.add_argument('--iter-per-epoch', default=1024, type=int,
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
@@ -158,10 +151,10 @@ if __name__ == "__main__":
                         help="model width for wide resnet")
     parser.add_argument("--alpha", type=int, default=3,
                         help="alpha regulariser for the loss")
-    parser.add_argument("--t1", type=int, default=16*5,
-                        help="first stage of iterations for calculating the alpha regulariser")
-    parser.add_argument("--t2", type=int, default=16*10,
-                        help="second stage of iterations for calculating the alpha regulariser")
+    parser.add_argument("--t1", type=int, default=1,
+                        help="first stage of epochs for calculating the alpha regulariser")
+    parser.add_argument("--t2", type=int, default=130,
+                        help="second stage of epochs for calculating the alpha regulariser")
     parser.add_argument("--drop-rate", type=int, default=0.3,
                         help="drop out rate for wrn")
     parser.add_argument('--num-validation', type=int,
