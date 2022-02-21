@@ -104,7 +104,7 @@ def train (model, datasets, dataloaders, modelpath,
             if epoch >= args.epoch_t1:
                 n_x_pl = x_pl.size(dim=0)
                 output_pl = model(x_pl)
-                alpha_w = alpha_weight(args.alpha, args.t1, args.t2, epoch)
+                alpha_w = alpha_weight(args.alpha, args.epoch_t1, args.epoch_t2, epoch)
                 pl_loss = 0.0 if (output_pl.size(0) == 0) else criterion(output_pl, y_pl) * alpha_w
             else: 
                 n_x_pl = 0
