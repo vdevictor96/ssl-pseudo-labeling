@@ -36,6 +36,8 @@ def train (model, datasets, dataloaders, modelpath,
             'test_losses': [],
             'model_depth' : args.model_depth,
             'num_classes' : args.num_classes,
+            'num_labeled' : args.num_labeled,
+            'num_validation' : args.num_validation,
             'model_width' : args.model_width,
             'drop_rate' : args.drop_rate,
         } 
@@ -155,13 +157,16 @@ def train (model, datasets, dataloaders, modelpath,
                     'test_losses': copy.deepcopy(test_losses),
                     'model_depth' : args.model_depth,
                     'num_classes' : args.num_classes,
+                    'num_labeled' : args.num_labeled,
+                    'num_validation' : args.num_validation,
                     'model_width' : args.model_width,
                     'drop_rate' : args.drop_rate
                 }
-                torch.save(best_model, pjoin(modelpath, 'best_model_{}.pt'.format(model_subpath)))
+                torch.save(best_model, pjoin(modelpath, 'best_model_{}_{}.pt'.format(model_subpath, args.num_labeled)))
                 print('Best model updated with validation loss : {:.5f} '.format(validation_loss))
         # update learning rate
         scheduler.step()
+        print("new lr: ", scheduler.get_lr())
         # Check test error with current model over test dataset
         running_loss = 0.0
         if test:
@@ -192,10 +197,12 @@ def train (model, datasets, dataloaders, modelpath,
         'test_losses': copy.deepcopy(test_losses),
         'model_depth' : args.model_depth,
         'num_classes' : args.num_classes,
+        'num_labeled' : args.num_labeled,
+        'num_validation' : args.num_validation,
         'model_width' : args.model_width,
         'drop_rate' : args.drop_rate
     }
-    torch.save(last_model, pjoin(modelpath, 'last_model_{}.pt'.format(model_subpath)))
+    torch.save(last_model, pjoin(modelpath, 'last_model_{}_{}.pt'.format(model_subpath, args.num_labeled)))
     if validation:
         # recover better weights from validation
         model.load_state_dict(best_model['model_state_dict'])

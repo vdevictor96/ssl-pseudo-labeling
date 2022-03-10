@@ -53,12 +53,24 @@ def plot(metric, label, color='b'):
     plt.show()
 
 
-def plot_model(modelpath, attrname, label, color='b'):
+def plot_model_attr(modelpath, attrname, label, color='b'):
     """ Generates a plot of a given attribute from a model
         Training, validation, test loss
     """
     model_cp = torch.load(pjoin(modelpath))
     plot(model_cp[attrname], label, color)
+
+def plot_model(modelpath):
+    """ Generates a plot of training and validation loss
+    """
+    model_cp = torch.load(pjoin(modelpath))
+    plt.plot(model_cp['training_losses'])
+    plt.plot(model_cp['validation_losses'])
+    plt.title('Loss Curves')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Training', 'Validation'], loc='upper left')
+    plt.show()
 
 
 def validation_set(base_dataset, num_validation, num_classes):
@@ -113,3 +125,32 @@ def test_accuracy(testdataset, filepath = "./path/to/model.pth.tar"):
     print('Accuracy of the network on test images: %d %%' % (
                 sum(total_accuracy)/len(total_accuracy)))
     
+def test_error(testdataset, filepath = "./path/to/model.pth.tar"):
+    # CREATE LOADER 
+
+    test_loader = DataLoader(testdataset,
+                            batch_size=64,
+                            shuffle=False,
+                            num_workers=1)
+
+
+    # RETRIEVE MODEL
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    modelpath = torch.load(pjoin(filepath))
+    model = WideResNet(modelpath['model_depth'],
+                    modelpath['num_classes'], widen_factor=modelpath['model_width'], dropRate=modelpath['drop_rate'])
+    model = model.to(device)
+    model.load_state_dict(modelpath['model_state_dict'])
+
+    # CALCULATE ACCURACY
+    model.eval()
+    total_accuracy = []
+    for x_test, y_test in test_loader:
+        with torch.no_grad():
+            x_test, y_test = x_test.to(device), y_test.to(device)
+            output_test = model(x_test)
+            acc = accuracy(output_test, y_test)
+            total_accuracy.append(sum(acc))
+    acc = float((sum(total_accuracy) / len(total_accuracy)))
+    err = (1 - acc * 0.01) * 100
+    print('Error of the network on test images: {:.2f} %'.format(err))

@@ -4,7 +4,8 @@ import argparse
 import math
 from dataloader import get_cifar10, get_cifar100
 from test import test_cifar10, test_cifar100
-from utils import plot, plot_model, test_accuracy, validation_set
+from utils import plot, plot_model, test_accuracy, test_error, validation_set
+from pathlib import Path
 
 from model.wrn import WideResNet
 from train import train
@@ -21,6 +22,11 @@ warnings.filterwarnings("ignore")
 
 
 def main(args):
+    print(args)
+
+    # create directory to save models 
+    Path(args.modelpath).mkdir(parents=True, exist_ok=True)
+
     # protect iterations/epoch parameters from erroneous input values
     if args.t2 > args.total_iter:
         print("argument t2 should be larger than total_iter")
@@ -49,7 +55,6 @@ def main(args):
                                                                         args.datapath)
 
     validation_dataset = validation_set(unlabeled_dataset, args.num_validation, args.num_classes)
-    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     labeled_loader = iter(DataLoader(labeled_dataset,
@@ -103,14 +108,20 @@ def main(args):
 
 
     # train model
-    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, False, args)
+    best_model = train(model, datasets, dataloaders, args.modelpath, criterion, optimizer, scheduler, True, True, args)
 
     # test
     #test_cifar10(test_dataset, './models/obs/best_model_cifar10.pt')
     
     # get test accuracy
-    # test_accuracy(test_dataset, './models/obs/best_model_cifar10.pt')
+    #test_accuracy(test_dataset, './runs/cifar100_2500/last_model_cifar100_2500_75.pt')
+    # get test error
+    # test_error(test_dataset, './runs/cifar100_10000/best_model_cifar100_10000_60.pt')
     
+    # %%
+    # plot whole model
+    # plot_model('./runs/cifar10_4000/last_model_cifar10_4000_95.pt')
+
     # %%
     # plot training loss
     # plot_model('./models/obs/last_model.pt', 'training_losses', 'Training Loss')
@@ -129,9 +140,9 @@ if __name__ == "__main__":
                         type=str, help="Path to the CIFAR-10/100 dataset")
     parser.add_argument('--num-labeled', type=int,
                         default=4000, help='Total number of labeled samples')
-    parser.add_argument("--lr", default=0.03, type=float,
+    parser.add_argument("--lr", default=0.01, type=float,
                         help="The initial learning rate")
-    parser.add_argument("--momentum", default=0.9, type=float,
+    parser.add_argument("--momentum", default=0.95, type=float,
                         help="Optimizer momentum")
     # default value was 0.00005. I changed default value, fixmatch paper recomends 0.0005
     parser.add_argument("--wd", default=0.0005, type=float,
@@ -142,9 +153,9 @@ if __name__ == "__main__":
                         help='train batchsize')
     parser.add_argument('--test-batch', default=64, type=int,
                         help='test batchsize')
-    parser.add_argument('--total-iter', default=16*20, type=int,
+    parser.add_argument('--total-iter', default=1024*100, type=int,
                         help='total number of iterations to run')
-    parser.add_argument('--iter-per-epoch', default=16, type=int,
+    parser.add_argument('--iter-per-epoch', default=1024, type=int,
                         help="Number of iterations to run per epoch")
     parser.add_argument('--num-workers', default=1, type=int,
                         help="Number of workers to launch during training")
@@ -158,9 +169,9 @@ if __name__ == "__main__":
                         help="model width for wide resnet")
     parser.add_argument("--alpha", type=int, default=3,
                         help="alpha regulariser for the loss")
-    parser.add_argument("--t1", type=int, default=16*5,
+    parser.add_argument("--t1", type=int, default=1024*5,
                         help="first stage of iterations for calculating the alpha regulariser")
-    parser.add_argument("--t2", type=int, default=16*10,
+    parser.add_argument("--t2", type=int, default=1024*75,
                         help="second stage of iterations for calculating the alpha regulariser")
     parser.add_argument("--drop-rate", type=int, default=0.3,
                         help="drop out rate for wrn")
